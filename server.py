@@ -3,7 +3,8 @@ Kerala Court Data MCP Server
 FastMCP server for managing court monthly data
 """
 import os
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.server.lifespan import lifespan
 from typing import Optional
 
 # Import database and validation modules
@@ -18,8 +19,26 @@ from validators import (
     validate_additional_metrics, validate_month_year, ValidationError
 )
 
-# Create FastMCP server
-mcp = FastMCP("Kerala Court Data Server")
+# Define lifespan for database connection
+@lifespan
+async def app_lifespan(server):
+    """Manage database connection lifecycle"""
+    print("🚀 Starting Kerala Court Data MCP Server...")
+    print(f"📊 DATABASE_URL: {'✓ Set' if os.getenv('DATABASE_URL') else '✗ NOT SET'}")
+    
+    # Setup: Connect to database
+    await db.connect()
+    print("✓ Connected to Neon database")
+    
+    try:
+        yield {"started_at": "server_ready"}
+    finally:
+        # Teardown: Close database connection
+        await db.close()
+        print("✓ Database connection closed")
+
+# Create FastMCP server with lifespan
+mcp = FastMCP("Kerala Court Data Server", lifespan=app_lifespan)
 
 # Store partial data during multi-step entry
 partial_data_store = {}
@@ -484,31 +503,11 @@ async def delete_monthly_data(court_name: str, month: int, year: int) -> str:
         return f"Error: {str(e)}"
 
 
-# Initialize database connection on startup
-@mcp.on_startup()
-async def startup():
-    """Initialize database connection"""
-    print("🚀 Starting Kerala Court Data MCP Server...")
-    print(f"📊 DATABASE_URL: {'✓ Set' if os.getenv('DATABASE_URL') else '✗ NOT SET'}")
-    try:
-        await db.connect()
-        print("✓ Connected to Neon database")
-    except Exception as e:
-        print(f"✗ Database connection failed: {e}")
-        raise
-
-
-@mcp.on_shutdown()
-async def shutdown():
-    """Close database connection"""
-    await db.close()
-    print("✓ Database connection closed")
-
-
 if __name__ == "__main__":
     # Run the server with HTTP transport
     # Render provides PORT environment variable
     port = int(os.getenv("PORT", 8000))
     print(f"🌐 Starting MCP server on http://0.0.0.0:{port}")
+    
     # Bind to 0.0.0.0 to accept external connections on Render
     mcp.run(transport="http", host="0.0.0.0", port=port)

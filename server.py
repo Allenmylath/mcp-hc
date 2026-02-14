@@ -4,7 +4,7 @@ FastMCP server for managing court monthly data
 """
 import os
 from fastmcp import FastMCP
-from fastmcp.server.lifespan import lifespan
+from contextlib import asynccontextmanager
 from typing import Optional
 
 # Import database and validation modules
@@ -20,17 +20,17 @@ from validators import (
 )
 
 # Define lifespan for database connection
-@lifespan
+@asynccontextmanager
 async def app_lifespan(server):
     """Manage database connection lifecycle"""
     print("🚀 Starting Kerala Court Data MCP Server...")
     print(f"📊 DATABASE_URL: {'✓ Set' if os.getenv('DATABASE_URL') else '✗ NOT SET'}")
     
     # Setup: Connect to database
-    await db.connect()
-    print("✓ Connected to Neon database")
-    
     try:
+        await db.connect()
+        print("✓ Connected to Neon database")
+        
         yield {"started_at": "server_ready"}
     finally:
         # Teardown: Close database connection
